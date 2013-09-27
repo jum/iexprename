@@ -5,26 +5,28 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/rwcarlsen/goexif/exif"
 )
 
 var (
-	root     *string = flag.String("root", "/Users/jum/Desktop/Zum Platzieren", "root dir for")
-	// XX2008-11XX30.11.2008
-	nameRegex = regexp.MustCompile(`XX([\d]{4})-([\d]{2})XX(.*)`)
-	monthMap = map[string]string{
-		"01": "01 Januar",
-		"02": "02 Februar",
-		"03": "03 März",
-		"04": "04 April",
-		"05": "05 Mai",
-		"06": "06 Juni",
-		"07": "07 Juli",
-		"08": "08 August",
-		"09": "09 September",
-		"10": "10 Oktober",
-		"11": "11 November",
-		"12": "12 Dezember",
+	root     *string = flag.String("root", "/Volumes/Bilder/Jens-Uwe/iPhoto_Export", "root dir for")
+	monthMap         = map[time.Month]string{
+		time.January:   "01 Januar",
+		time.February:  "02 Februar",
+		time.March:     "03 März",
+		time.April:     "04 April",
+		time.May:       "05 Mai",
+		time.June:      "06 Juni",
+		time.July:      "07 Juli",
+		time.August:    "08 August",
+		time.September: "09 September",
+		time.October:   "10 Oktober",
+		time.November:  "11 November",
+		time.December:  "12 Dezember",
 	}
 )
 
@@ -43,35 +45,71 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	defer fd.Close()
 	fi, err := fd.Readdir(-1)
 	if err != nil {
 		panic(err.Error())
 	}
+	fd.Close()
 	//debug("fi = %#v\n", fi)
 	for _, e := range fi {
 		if !e.IsDir() {
 			continue
 		}
-		if m := nameRegex.FindStringSubmatch(e.Name()); m != nil {
-			oldName := filepath.Join(*root, e.Name())
-			debug("old = %#v\n", oldName)
-			//debug("m = %#v\n", m)
-			newName := filepath.Join(*root, m[1], monthMap[m[2]], m[3])
-			debug("new = %#v\n", newName)
-			newDir := filepath.Join(*root, m[1])
-			debug("dir = %#v\n", newDir)
-			if err = os.Mkdir(newDir, 0775); err != nil {
-				debug("mkdir %v: %v\n", newDir, err.Error())
+		//debug("subdir %#v\n", e)
+		subPath := filepath.Join(*root, e.Name())
+		subfd, err := os.Open(subPath)
+		if err != nil {
+			panic(err.Error())
+		}
+		subDir, err := subfd.Readdir(-1)
+		subfd.Close()
+		if err != nil {
+			panic(err.Error())
+		}
+		for _, se := range subDir {
+			//debug("ssubdir %#v\n", se)
+			if se.IsDir() {
+				continue
 			}
-			newDir = filepath.Join(*root, m[1], monthMap[m[2]])
-			debug("dir = %#v\n", newDir)
-			if err = os.Mkdir(newDir, 0775); err != nil {
-				debug("mkdir %v: %v\n", newDir, err.Error())
+			ext := filepath.Ext(se.Name())
+			//debug("ext %v\n", ext)
+			if !(strings.EqualFold(ext, ".jpg") || strings.EqualFold(ext, ".jpeg")) {
+				continue
 			}
-			if err = os.Rename(oldName, newName); err != nil {
+			fname := filepath.Join(subPath, se.Name())
+			debug("doing %v\n", fname)
+			f, err := os.Open(fname)
+			if err != nil {
 				panic(err.Error())
 			}
+			x, err := exif.Decode(f)
+			if err != nil {
+				panic(err.Error())
+			}
+			f.Close()
+			debug("x %#v\n", x)
+			dt, err := x.Get(exif.DateTime)
+			if err != nil {
+				if _, ok := err.(exif.TagNotPresentError); ok {
+					continue
+				}
+				panic(err.Error())
+			}
+			dateTime, err := time.Parse("2006:01:02 15:04:05", dt.StringVal())
+			if err != nil {
+				panic(err.Error())
+			}
+			debug("dt %#v, %v", dt, dateTime.Format(time.RFC3339))
+			newDir := filepath.Join(*root, strconv.Itoa(dateTime.Year()), monthMap[dateTime.Month()])
+			newName := filepath.Join(newDir, e.Name())
+			debug("oldName %v, newName %v\n", subPath, newName)
+			if err = os.MkdirAll(newDir, 0755); err != nil {
+				panic(err.Error())
+			}
+			if err = os.Rename(subPath, newName); err != nil {
+				panic(err.Error())
+			}
+			break
 		}
 	}
 }
