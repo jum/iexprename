@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -84,6 +85,9 @@ func main() {
 			}
 			x, err := exif.Decode(f)
 			if err != nil {
+				if err == io.EOF {
+					continue
+				}
 				panic(err.Error())
 			}
 			f.Close()
