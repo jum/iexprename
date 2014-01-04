@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	root     *string = flag.String("root", "/Volumes/Bilder/Jens-Uwe/iPhoto_Export", "root dir for")
-	monthMap         = map[time.Month]string{
+	root            *string = flag.String("root", "/Volumes/Bilder/Jens-Uwe/iPhoto_Export", "root dir for")
+	phoshare_compat *bool   = flag.Bool("phoshare-compat", true, "suffix compatibilty with phoshare exports")
+	monthMap                = map[time.Month]string{
 		time.January:   "01 Januar",
 		time.February:  "02 Februar",
 		time.March:     "03 März",
@@ -112,6 +113,38 @@ func main() {
 			}
 			if err = os.Rename(subPath, newName); err != nil {
 				panic(err.Error())
+			}
+			if *phoshare_compat {
+				fd, err := os.Open(newName)
+				if err != nil {
+					panic(err.Error())
+				}
+				fi, err := fd.Readdir(-1)
+				if err != nil {
+					panic(err.Error())
+				}
+				fd.Close()
+				//debug("fi = %#v\n", fi)
+				for _, e := range fi {
+					if e.IsDir() {
+						continue
+					}
+					fileName := e.Name()
+					for i := len(fileName) - 1; i >= 0 && !os.IsPathSeparator(fileName[i]); i-- {
+						if fileName[i] == '.' {
+							fileName = fileName[:i] + strings.ToLower(fileName[i:])
+							break
+						}
+					}
+					if e.Name() != fileName {
+						origPath := filepath.Join(newName, e.Name())
+						newPath := filepath.Join(newName, fileName)
+						debug("origPath %v, newPath %v\n", origPath, newPath)
+						if err = os.Rename(origPath, newPath); err != nil {
+							panic(err.Error())
+						}
+					}
+				}
 			}
 			break
 		}
