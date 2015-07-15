@@ -93,18 +93,11 @@ func main() {
 			}
 			f.Close()
 			debug("x %#v\n", x)
-			dt, err := x.Get(exif.DateTime)
-			if err != nil {
-				if _, ok := err.(exif.TagNotPresentError); ok {
-					continue
-				}
-				panic(err.Error())
-			}
-			dateTime, err := time.Parse("2006:01:02 15:04:05", dt.StringVal())
+			dateTime, err := x.DateTime()
 			if err != nil {
 				panic(err.Error())
 			}
-			debug("dt %#v, %v", dt, dateTime.Format(time.RFC3339))
+			debug("dt %v", dateTime.Format(time.RFC3339))
 			newDir := filepath.Join(*root, strconv.Itoa(dateTime.Year()), monthMap[dateTime.Month()])
 			newName := filepath.Join(newDir, e.Name())
 			debug("oldName %v, newName %v\n", subPath, newName)
