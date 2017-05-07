@@ -95,7 +95,8 @@ func main() {
 			debug("x %#v\n", x)
 			dateTime, err := x.DateTime()
 			if err != nil {
-				panic(err.Error())
+				fmt.Fprintf(os.Stderr, "%v:%v\n", fname, err)
+				continue
 			}
 			debug("dt %v", dateTime.Format(time.RFC3339))
 			newDir := filepath.Join(*root, strconv.Itoa(dateTime.Year()), monthMap[dateTime.Month()])
